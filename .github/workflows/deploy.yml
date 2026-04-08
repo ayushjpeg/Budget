@@ -1,0 +1,41 @@
+name: Build and Deploy Budget Tracker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, linux]
+    env:
+      BACKEND_URL: ${{ secrets.BACKEND_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build Docker image
+        run: docker build --build-arg BACKEND_URL="$BACKEND_URL" -t budget-tracker:latest .
+
+      - name: Stop existing container
+        run: docker rm -f budget-tracker || true
+
+      - name: Run new container
+        run: |
+          docker run -d --restart unless-stopped \
+            --name budget-tracker \
+            -p 8011:8011 \
+            budget-tracker:latest
