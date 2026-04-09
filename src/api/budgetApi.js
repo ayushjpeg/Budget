@@ -34,6 +34,11 @@ const request = async (path, { method = 'GET', body, headers = {} } = {}) => {
 
 export const fetchBudgetEntries = (month) => request(`/budget/entries?month=${encodeURIComponent(month)}`)
 
+export const createBudgetCategory = (payload) => request('/budget/categories', {
+  method: 'POST',
+  body: JSON.stringify(payload),
+})
+
 export const createBudgetEntry = (payload) => request('/budget/entries', {
   method: 'POST',
   body: JSON.stringify(payload),

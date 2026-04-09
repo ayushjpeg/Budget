@@ -161,6 +161,12 @@ button {
   color: #9d2a17;
 }
 
+.category-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
 .category-stack {
   display: grid;
   gap: 18px;

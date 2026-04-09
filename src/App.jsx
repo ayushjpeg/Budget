@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createBudgetEntry, deleteBudgetEntry, fetchBudgetEntries, updateBudgetEntry } from './api/budgetApi'
-
-const categories = ['Investments', 'Rusty', 'Household', 'Extra']
+import { createBudgetCategory, createBudgetEntry, deleteBudgetEntry, fetchBudgetEntries, updateBudgetEntry } from './api/budgetApi'
 
 const emptyForm = {
-  category: 'Investments',
+  category: '',
   title: '',
   amount: '',
   note: '',
@@ -47,8 +45,8 @@ function formatCurrency(value) {
 
 function App() {
   const [month, setMonth] = useState(getTodayMonth)
-  const [data, setData] = useState({ month: getTodayMonth(), total_spend: 0, category_totals: [], entries: [] })
-  const [expanded, setExpanded] = useState(() => Object.fromEntries(categories.map((category) => [category, true])))
+  const [data, setData] = useState({ month: getTodayMonth(), total_spend: 0, categories: [], category_totals: [], entries: [] })
+  const [expanded, setExpanded] = useState({})
   const [formState, setFormState] = useState({ mode: 'create', entryId: null, values: { ...emptyForm, spent_on: getTodayDate() } })
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -71,33 +69,48 @@ function App() {
     load()
   }, [month])
 
+  const categoryNames = useMemo(() => (data.categories || []).map((category) => category.name), [data.categories])
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = { ...prev }
+      categoryNames.forEach((category) => {
+        if (next[category] === undefined) {
+          next[category] = true
+        }
+      })
+      return next
+    })
+  }, [categoryNames])
+
   const entriesByCategory = useMemo(() => {
-    const grouped = Object.fromEntries(categories.map((category) => [category, []]))
+    const grouped = Object.fromEntries(categoryNames.map((category) => [category, []]))
     for (const entry of data.entries || []) {
       grouped[entry.category] = [...(grouped[entry.category] || []), entry]
     }
     return grouped
-  }, [data.entries])
+  }, [categoryNames, data.entries])
 
   const totalsByCategory = useMemo(() => {
-    const totals = Object.fromEntries(categories.map((category) => [category, { total_amount: 0, entry_count: 0 }]))
+    const totals = Object.fromEntries(categoryNames.map((category) => [category, { total_amount: 0, entry_count: 0 }]))
     for (const item of data.category_totals || []) {
       totals[item.category] = item
     }
     return totals
-  }, [data.category_totals])
+  }, [categoryNames, data.category_totals])
 
   const topCategories = useMemo(() => (
-    [...categories].sort((left, right) => totalsByCategory[right].total_amount - totalsByCategory[left].total_amount)
-  ), [totalsByCategory])
+    [...categoryNames].sort((left, right) => (totalsByCategory[right]?.total_amount || 0) - (totalsByCategory[left]?.total_amount || 0))
+  ), [categoryNames, totalsByCategory])
 
   const openCreate = (category) => {
+    const fallbackCategory = category || categoryNames[0] || ''
     setFormState({
       mode: 'create',
       entryId: null,
       values: {
         ...emptyForm,
-        category,
+        category: fallbackCategory,
         spent_on: `${month}-01` > getTodayDate() ? `${month}-01` : getTodayDate().startsWith(month) ? getTodayDate() : `${month}-01`,
       },
     })
@@ -137,6 +150,22 @@ function App() {
   const refreshMonth = async () => {
     const payload = await fetchBudgetEntries(month)
     setData(payload)
+  }
+
+  const handleCreateCategory = async () => {
+    const name = window.prompt('New category name')
+    if (!name) return
+    setSaving(true)
+    setError('')
+    try {
+      const category = await createBudgetCategory({ name })
+      await refreshMonth()
+      setExpanded((prev) => ({ ...prev, [category.name]: true }))
+    } catch (err) {
+      setError(err.message || 'Unable to create category.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleSubmit = async (event) => {
@@ -191,7 +220,7 @@ function App() {
           <p className="eyebrow">Monthly budget board</p>
           <h1>Track where your money is going without losing the monthly picture.</h1>
           <p className="hero-text">
-            One board for monthly spend, one running total, and four focused buckets for the categories you actually use.
+            One board for monthly spend, one running total, and category buckets you can grow as your budget changes.
           </p>
         </div>
         <div className="hero-total-card">
@@ -212,8 +241,8 @@ function App() {
         {topCategories.map((category) => (
           <article key={category} className="summary-card">
             <span>{category}</span>
-            <strong>{formatCurrency(totalsByCategory[category].total_amount)}</strong>
-            <small>{totalsByCategory[category].entry_count} entries</small>
+            <strong>{formatCurrency(totalsByCategory[category]?.total_amount)}</strong>
+            <small>{totalsByCategory[category]?.entry_count || 0} entries</small>
           </article>
         ))}
       </section>
@@ -221,10 +250,14 @@ function App() {
       {error && <div className="status-banner status-banner--error">{error}</div>}
       {loading && <div className="status-banner">Loading entries...</div>}
 
+      <section className="category-toolbar">
+        <button className="ghost-button" onClick={handleCreateCategory} disabled={saving}>Create category</button>
+      </section>
+
       <main className="category-stack">
-        {categories.map((category) => {
+        {categoryNames.map((category) => {
           const categoryEntries = entriesByCategory[category] || []
-          const totals = totalsByCategory[category]
+          const totals = totalsByCategory[category] || { total_amount: 0, entry_count: 0 }
           const isOpen = expanded[category]
           return (
             <section key={category} className="category-card">
@@ -287,7 +320,7 @@ function App() {
               <label>
                 <span>Category</span>
                 <select value={formState.values.category} onChange={(event) => handleChange('category', event.target.value)}>
-                  {categories.map((category) => (
+                  {categoryNames.map((category) => (
                     <option key={category} value={category}>{category}</option>
                   ))}
                 </select>
