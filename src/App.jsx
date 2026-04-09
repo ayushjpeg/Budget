@@ -105,6 +105,10 @@ function App() {
 
   const openCreate = (category) => {
     const fallbackCategory = category || categoryNames[0] || ''
+    if (!fallbackCategory) {
+      window.alert('Create a category first.')
+      return
+    }
     setFormState({
       mode: 'create',
       entryId: null,
@@ -247,6 +251,12 @@ function App() {
         ))}
       </section>
 
+      {!loading && categoryNames.length === 0 && (
+        <div className="status-banner">
+          No categories yet. Create your first category to start adding budget entries.
+        </div>
+      )}
+
       {error && <div className="status-banner status-banner--error">{error}</div>}
       {loading && <div className="status-banner">Loading entries...</div>}
 
@@ -255,6 +265,13 @@ function App() {
       </section>
 
       <main className="category-stack">
+        {categoryNames.length === 0 && !loading && (
+          <section className="category-card">
+            <div className="empty-state">
+              <p>Create a category like Rent, Travel, Bills, or Savings to start organizing entries.</p>
+            </div>
+          </section>
+        )}
         {categoryNames.map((category) => {
           const categoryEntries = entriesByCategory[category] || []
           const totals = totalsByCategory[category] || { total_amount: 0, entry_count: 0 }
@@ -320,6 +337,7 @@ function App() {
               <label>
                 <span>Category</span>
                 <select value={formState.values.category} onChange={(event) => handleChange('category', event.target.value)}>
+                  {categoryNames.length === 0 && <option value="">Create a category first</option>}
                   {categoryNames.map((category) => (
                     <option key={category} value={category}>{category}</option>
                   ))}
@@ -350,7 +368,7 @@ function App() {
 
               <div className="editor-actions">
                 <button type="button" className="ghost-button" onClick={closeEditor}>Cancel</button>
-                <button type="submit" className="primary-button" disabled={saving}>{saving ? 'Saving...' : formState.mode === 'edit' ? 'Save changes' : 'Create entry'}</button>
+                <button type="submit" className="primary-button" disabled={saving || categoryNames.length === 0}>{saving ? 'Saving...' : formState.mode === 'edit' ? 'Save changes' : 'Create entry'}</button>
               </div>
             </form>
           </div>
